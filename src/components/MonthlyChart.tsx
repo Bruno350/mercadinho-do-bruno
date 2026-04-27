@@ -18,7 +18,7 @@ const Tip = ({ active, payload, label }: any) => {
 
 const MonthlyChart: React.FC<{ data: MonthlyFinancial[] }> = ({ data }) => (
   <div className="bg-[#111827] border border-white/5 rounded-xl p-5">
-    <h3 className="text-white font-semibold mb-4 text-sm uppercase tracking-widest">Evolução Mensal — Jan a Jun/2025</h3>
+    <h3 className="text-white font-semibold mb-4 text-sm uppercase tracking-widest">Evolução Mensal — Jan a Jun/2026</h3>
     <ResponsiveContainer width="100%" height={260}>
       <AreaChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
         <defs>

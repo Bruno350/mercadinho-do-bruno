@@ -17,7 +17,7 @@ const StockView: React.FC = () => {
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold text-white mb-1">Estoque — Planejamento 6 Meses</h2>
-      <p className="text-gray-500 text-sm mb-6">Previsão de demanda por loja · Jan–Jun 2025</p>
+      <p className="text-gray-500 text-sm mb-6">Previsão de demanda por loja · Jan–Jun 2026</p>
 
       <div className="flex flex-wrap gap-3 mb-5">
         {[{ label:"Loja", val:storeId, set:setStoreId, opts:STORES.map(s=>({v:s.id,l:s.name})) },
