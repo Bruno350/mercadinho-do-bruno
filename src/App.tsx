@@ -1,46 +1,62 @@
 import React, { useState } from "react";
 import {
-  LayoutDashboard, Package, Users, DollarSign,
-  ShoppingCart, TrendingUp, Download, Store,
+  LayoutDashboard,
+  Package,
+  Truck,
+  Users,
+  DollarSign,
+  ShoppingCart,
+  TrendingUp,
+  Download,
 } from "lucide-react";
 import { DASHBOARD_DATA } from "./data/mockData";
-import { exportToExcel }  from "./data/excelExport";
-import KpiCard            from "./components/KpiCard";
-import MonthlyChart       from "./components/MonthlyChart";
-import StoreBarChart      from "./components/StoreBarChart";
-import StatePieChart      from "./components/StatePieChart";
-import TopProductsTable   from "./components/TopProductsTable";
-import StockView          from "./pages/StockView";
+import { exportToExcel } from "./data/excelExport";
+import KpiCard          from "./components/KpiCard";
+import MonthlyChart     from "./components/MonthlyChart";
+import StoreBarChart    from "./components/StoreBarChart";
+import StatePieChart    from "./components/StatePieChart";
+import TopProductsTable from "./components/TopProductsTable";
+import StockView        from "./pages/StockView";
+import TransferenciaView from "./pages/TransferenciaView";
 
-type Tab = "dashboard" | "estoque";
+type Tab = "dashboard" | "estoque" | "transferencia";
 
 const fmtBRL = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 const fmtCompact = (v: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact" }).format(v);
+  new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    notation: "compact",
+  }).format(v);
 
 export default function App() {
-  const [tab, setTab]         = useState<Tab>("dashboard");
+  const [tab, setTab]           = useState<Tab>("dashboard");
   const [sideOpen, setSideOpen] = useState(false);
   const d    = DASHBOARD_DATA;
   const last = d.monthly[d.monthly.length - 1];
   const prev = d.monthly[d.monthly.length - 2];
-  const revTrend  = prev ? ((last.totalRevenue   - prev.totalRevenue)   / prev.totalRevenue)   * 100 : 0;
-  const custTrend = prev ? ((last.totalCustomers  - prev.totalCustomers) / prev.totalCustomers) * 100 : 0;
+  const revTrend  = prev ? ((last.totalRevenue  - prev.totalRevenue)  / prev.totalRevenue)  * 100 : 0;
+  const custTrend = prev ? ((last.totalCustomers - prev.totalCustomers) / prev.totalCustomers) * 100 : 0;
 
   const NAV: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "estoque",   label: "Estoque",   icon: Package },
+    { id: "dashboard",    label: "Dashboard",    icon: LayoutDashboard },
+    { id: "estoque",      label: "Estoque",      icon: Package },
+    { id: "transferencia",label: "Movimentação", icon: Truck },
   ];
 
   const handleTab = (id: Tab) => { setTab(id); setSideOpen(false); };
 
-  // ── cores por índice de loja ───────────────────────────────
-  const BORDER_COLORS = ["border-sky-500/40","border-emerald-500/40","border-orange-500/40","border-fuchsia-500/40","border-yellow-500/40"];
-  const TEXT_COLORS   = ["text-sky-400","text-emerald-400","text-orange-400","text-fuchsia-400","text-yellow-400"];
+  const BORDER_COLORS = [
+    "border-sky-500/40","border-emerald-500/40","border-orange-500/40",
+    "border-fuchsia-500/40","border-yellow-500/40",
+  ];
+  const TEXT_COLORS = [
+    "text-sky-400","text-emerald-400","text-orange-400",
+    "text-fuchsia-400","text-yellow-400",
+  ];
 
-  // ── sidebar compartilhado ──────────────────────────────────
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
@@ -53,11 +69,8 @@ export default function App() {
         <p className="text-xs text-gray-600 mt-1 font-mono">Dashboard · 2026</p>
       </div>
 
-      {/* Nav + Lojas + Botão — tudo em sequência sem divisórias */}
       <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-0.5">
-
-        {/* Navegação */}
-        {NAV.map(item => (
+        {NAV.map((item) => (
           <button
             key={item.id}
             onClick={() => handleTab(item.id)}
@@ -72,28 +85,35 @@ export default function App() {
           </button>
         ))}
 
-        {/* Separador visual leve */}
-        <div className="pt-4 pb-1 px-1">
-          <p className="text-[10px] text-gray-600 uppercase tracking-widest">Lojas</p>
+        {/* Divisória */}
+        <div className="mx-3 my-3 border-t border-white/5" />
+
+        {/* Label + lista de lojas — estilo informativo, não clicável */}
+        <div className="px-3">
+          <p className="text-[10px] text-gray-600 uppercase tracking-widest mb-2">Lojas</p>
+          <div className="rounded-lg border border-white/5 overflow-hidden">
+            {d.stores.map((s, i) => (
+              <div
+                key={s.id}
+                className={`flex items-center gap-2.5 px-3 py-2 ${
+                  i < d.stores.length - 1 ? "border-b border-white/5" : ""
+                }`}
+              >
+                {/* bolinha colorida como indicador */}
+                <span
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    s.type === "matriz" ? "bg-sky-400" : "bg-gray-600"
+                  }`}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] text-gray-400 truncate leading-tight">{s.city}</p>
+                </div>
+                <span className="text-[10px] text-gray-600 font-mono shrink-0">{s.state}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Lista de lojas */}
-        {d.stores.map(s => (
-          <div key={s.id} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors">
-            <Store size={12} className={s.type === "matriz" ? "text-sky-400 shrink-0" : "text-gray-600 shrink-0"} />
-            <div className="min-w-0 flex-1">
-              <p className="text-xs text-gray-300 truncate leading-tight">{s.city}</p>
-              <p className="text-[10px] text-gray-600">{s.state}</p>
-            </div>
-            {s.type === "matriz" && (
-              <span className="text-[9px] bg-sky-500/20 text-sky-400 px-1.5 py-0.5 rounded-full shrink-0 font-medium">
-                MTZ
-              </span>
-            )}
-          </div>
-        ))}
-
-        {/* Exportar */}
         <div className="pt-3">
           <button
             onClick={exportToExcel}
@@ -111,34 +131,34 @@ export default function App() {
       className="min-h-screen bg-[#080c14] flex text-white"
       style={{
         backgroundImage:
-          "linear-gradient(rgba(14,165,233,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(14,165,233,0.03) 1px,transparent 1px)",
+          "linear-gradient(rgba(14,165,233,0.03) 1px,transparent 1px)," +
+          "linear-gradient(90deg,rgba(14,165,233,0.03) 1px,transparent 1px)",
         backgroundSize: "40px 40px",
       }}
     >
-      {/* ── SIDEBAR DESKTOP (lg+) ─────────────────────────── */}
+      {/* SIDEBAR DESKTOP */}
       <aside className="hidden lg:flex w-56 shrink-0 bg-[#0d1424] border-r border-white/5 flex-col">
         <SidebarContent />
       </aside>
 
-      {/* ── DRAWER MOBILE ─────────────────────────────────── */}
+      {/* DRAWER MOBILE */}
       {sideOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex">
-          {/* backdrop */}
           <div className="absolute inset-0 bg-black/60" onClick={() => setSideOpen(false)} />
-          {/* painel */}
           <div className="relative z-50 w-56 bg-[#0d1424] border-r border-white/5 flex flex-col h-full shadow-2xl">
             <SidebarContent />
           </div>
         </div>
       )}
 
-      {/* ── MAIN ─────────────────────────────────────────── */}
+      {/* MAIN */}
       <div className="flex-1 flex flex-col min-w-0">
-
         {/* Top bar mobile */}
         <header className="lg:hidden flex items-center justify-between px-4 py-3 bg-[#0d1424] border-b border-white/5 shrink-0">
-          <button onClick={() => setSideOpen(true)} className="text-gray-400 hover:text-white transition-colors p-1">
-            {/* hamburguer */}
+          <button
+            onClick={() => setSideOpen(true)}
+            className="text-gray-400 hover:text-white transition-colors p-1"
+          >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <rect y="3"  width="20" height="2" rx="1"/>
               <rect y="9"  width="20" height="2" rx="1"/>
@@ -156,10 +176,8 @@ export default function App() {
 
         {/* Conteúdo */}
         <main className="flex-1 overflow-auto pb-16 lg:pb-0">
-          {tab === "dashboard" ? (
+          {tab === "dashboard" && (
             <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
-
-              {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h1 className="text-xl sm:text-2xl font-bold text-white">Visão Financeira</h1>
@@ -169,11 +187,12 @@ export default function App() {
                 </div>
                 <div className="sm:text-right">
                   <p className="text-xs text-gray-600 font-mono">Receita Total Acumulada</p>
-                  <p className="text-xl sm:text-2xl font-bold text-emerald-400">{fmtBRL(d.totals.revenue)}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-emerald-400">
+                    {fmtBRL(d.totals.revenue)}
+                  </p>
                 </div>
               </div>
 
-              {/* KPIs */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <KpiCard title="Nº de Clientes"    value={d.totals.customers.toLocaleString("pt-BR")}   sub="acumulado 6 meses" icon={Users}        color="blue"   trend={custTrend} />
                 <KpiCard title="Unidades Vendidas" value={d.totals.unitsSold.toLocaleString("pt-BR")}    sub="total de produtos" icon={ShoppingCart} color="green"  />
@@ -181,13 +200,11 @@ export default function App() {
                 <KpiCard title="Qtd de Vendas"     value={d.totals.transactions.toLocaleString("pt-BR")} sub="registros totais"  icon={TrendingUp}   color="pink"   />
               </div>
 
-              {/* Gráficos row 1 */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
                 <MonthlyChart  data={d.monthly} />
                 <StoreBarChart data={d.byStore}  />
               </div>
 
-              {/* Gráficos row 2 */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-6">
                 <StatePieChart data={d.byState} />
                 <div className="lg:col-span-2">
@@ -195,7 +212,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Strip filiais — 2 cols mobile, 5 desktop */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {d.byStore.map((s, i) => (
                   <div key={s.storeId} className={`bg-[#111827] border ${BORDER_COLORS[i]} rounded-xl p-4`}>
@@ -212,16 +228,16 @@ export default function App() {
                   </div>
                 ))}
               </div>
-
             </div>
-          ) : (
-            <StockView />
           )}
+
+          {tab === "estoque" && <StockView />}
+          {tab === "transferencia" && <TransferenciaView />}
         </main>
 
-        {/* ── BOTTOM NAV MOBILE ─────────────────────────── */}
+        {/* BOTTOM NAV MOBILE */}
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#0d1424] border-t border-white/5 flex">
-          {NAV.map(item => (
+          {NAV.map((item) => (
             <button
               key={item.id}
               onClick={() => handleTab(item.id)}
