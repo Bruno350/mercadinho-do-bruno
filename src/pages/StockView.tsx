@@ -10,15 +10,16 @@ import {
   ArrowUp,
   ArrowDown,
   Minus,
+  Radio,
 } from "lucide-react";
 import { STORES, PRODUCTS } from "../data/mockData";
+import { useStock } from "../context/StockContext";
 
 const MONTHS_LABELS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun"];
 
 type SortField = "name" | "category" | "quantity" | "forecast";
 type SortDir   = "asc" | "desc";
 
-// ── helpers ───────────────────────────────────────────────────────
 const stockLevel = (qty: number, min = 20) =>
   qty >= min * 2 ? "ok" : qty >= min ? "low" : "crit";
 
@@ -44,37 +45,43 @@ const LEVEL_LABEL: Record<string, string> = {
 };
 
 export default function StockView() {
+  // ── conexão com o estado global de estoque (Context API) ──
+  // getStoreStock devolve o estoque JÁ atualizado com qualquer
+  // transferência feita na tela de Movimentação, sem precisar
+  // de F5 — é isso que dá o efeito de "tempo real".
+  const { getStoreStock } = useStock();
+
   const [storeId,   setStoreId]   = useState<string>(STORES[0].id);
   const [category,  setCategory]  = useState<string>("Todos");
   const [search,    setSearch]    = useState<string>("");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir,   setSortDir]   = useState<SortDir>("asc");
 
-  // store derivado do storeId — SEMPRE sincronizado
   const store = useMemo(
     () => STORES.find((s) => s.id === storeId) ?? STORES[0],
     [storeId]
   );
+
+  // estoque "vivo" da loja selecionada — vem do contexto, não do mockData direto
+  const liveStock = useMemo(() => getStoreStock(storeId), [storeId, getStoreStock]);
 
   const categories = useMemo(
     () => ["Todos", ...Array.from(new Set(PRODUCTS.map((p) => p.category))).sort()],
     []
   );
 
-  // KPIs da loja selecionada
   const kpis = useMemo(() => {
-    const total    = store.stock.reduce((a, i) => a + i.quantity, 0);
-    const critical = store.stock.filter((i) => stockLevel(i.quantity) === "crit").length;
-    const low      = store.stock.filter((i) => stockLevel(i.quantity) === "low").length;
-    const forecast = store.stock.reduce(
+    const total    = liveStock.reduce((a, i) => a + i.quantity, 0);
+    const critical = liveStock.filter((i) => stockLevel(i.quantity) === "crit").length;
+    const low      = liveStock.filter((i) => stockLevel(i.quantity) === "low").length;
+    const forecast = liveStock.reduce(
       (a, i) => a + i.monthlyForecast.reduce((b, v) => b + v, 0), 0
     );
     return { total, critical, low, forecast };
-  }, [store]);
+  }, [liveStock]);
 
-  // linhas filtradas + ordenadas
   const rows = useMemo(() => {
-    const filtered = store.stock
+    const filtered = liveStock
       .map((item) => {
         const product = PRODUCTS.find((p) => p.id === item.productId)!;
         return { ...item, product };
@@ -98,7 +105,7 @@ export default function StockView() {
       const cmp = typeof va === "string" ? va.localeCompare(vb as string) : (va as number) - (vb as number);
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [store, category, search, sortField, sortDir]);
+  }, [liveStock, category, search, sortField, sortDir]);
 
   function toggleSort(field: SortField) {
     if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -123,11 +130,15 @@ export default function StockView() {
               <Warehouse size={14} className="text-emerald-400" />
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-white">Estoque</h1>
+
+            {/* badge "tempo real" — bom gancho pra explicar a arquitetura na apresentação */}
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-medium ml-1">
+              <Radio size={9} className="animate-pulse" /> Tempo real
+            </span>
           </div>
           <p className="text-gray-500 text-sm">Planejamento de demanda · Jan–Jun 2026</p>
         </div>
 
-        {/* badge tipo */}
         <div className={`self-start sm:self-auto flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${
           store.type === "matriz"
             ? "bg-sky-500/10 border-sky-500/20 text-sky-400"
@@ -161,34 +172,10 @@ export default function StockView() {
       {/* ── KPIs da loja ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          {
-            label: "Total em estoque",
-            value: kpis.total.toLocaleString("pt-BR"),
-            icon: Package,
-            color: "text-white",
-            sub: "unidades",
-          },
-          {
-            label: "Itens críticos",
-            value: kpis.critical.toString(),
-            icon: AlertTriangle,
-            color: "text-red-400",
-            sub: "abaixo do mínimo",
-          },
-          {
-            label: "Itens baixos",
-            value: kpis.low.toString(),
-            icon: AlertTriangle,
-            color: "text-amber-400",
-            sub: "atenção necessária",
-          },
-          {
-            label: "Previsão 6 meses",
-            value: kpis.forecast.toLocaleString("pt-BR"),
-            icon: BarChart3,
-            color: "text-sky-400",
-            sub: "unidades demanda",
-          },
+          { label: "Total em estoque", value: kpis.total.toLocaleString("pt-BR"), icon: Package, color: "text-white", sub: "unidades" },
+          { label: "Itens críticos",   value: kpis.critical.toString(),            icon: AlertTriangle, color: "text-red-400", sub: "abaixo do mínimo" },
+          { label: "Itens baixos",     value: kpis.low.toString(),                 icon: AlertTriangle, color: "text-amber-400", sub: "atenção necessária" },
+          { label: "Previsão 6 meses", value: kpis.forecast.toLocaleString("pt-BR"), icon: BarChart3, color: "text-sky-400", sub: "unidades demanda" },
         ].map((k) => (
           <div key={k.label} className="bg-[#111827] border border-white/5 rounded-xl px-4 py-3 flex items-start gap-3">
             <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center shrink-0 mt-0.5">
@@ -205,7 +192,6 @@ export default function StockView() {
 
       {/* ── Filtros ── */}
       <div className="flex flex-wrap gap-2 items-center">
-        {/* busca */}
         <div className="relative">
           <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
           <input
@@ -217,7 +203,6 @@ export default function StockView() {
           />
         </div>
 
-        {/* categoria */}
         <div className="relative">
           <select
             value={category}
@@ -229,7 +214,6 @@ export default function StockView() {
           <ChevronDown size={11} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
         </div>
 
-        {/* contagem */}
         <span className="text-xs text-gray-600 font-mono ml-auto">
           {rows.length} produto{rows.length !== 1 ? "s" : ""}
         </span>
@@ -241,93 +225,56 @@ export default function StockView() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-[#1a2438] border-b border-white/5">
-                {/* colunas fixas */}
-                <th
-                  onClick={() => toggleSort("name")}
-                  className="text-left text-gray-400 py-3 px-3 font-medium whitespace-nowrap cursor-pointer hover:text-gray-200 select-none"
-                >
+                <th onClick={() => toggleSort("name")} className="text-left text-gray-400 py-3 px-3 font-medium whitespace-nowrap cursor-pointer hover:text-gray-200 select-none">
                   <span className="flex items-center">Produto <SortIcon field="name" /></span>
                 </th>
-                <th
-                  onClick={() => toggleSort("category")}
-                  className="text-left text-gray-400 py-3 px-3 font-medium whitespace-nowrap cursor-pointer hover:text-gray-200 select-none"
-                >
+                <th onClick={() => toggleSort("category")} className="text-left text-gray-400 py-3 px-3 font-medium whitespace-nowrap cursor-pointer hover:text-gray-200 select-none">
                   <span className="flex items-center">Categoria <SortIcon field="category" /></span>
                 </th>
-                <th
-                  onClick={() => toggleSort("quantity")}
-                  className="text-left text-gray-400 py-3 px-3 font-medium whitespace-nowrap cursor-pointer hover:text-gray-200 select-none"
-                >
+                <th onClick={() => toggleSort("quantity")} className="text-left text-gray-400 py-3 px-3 font-medium whitespace-nowrap cursor-pointer hover:text-gray-200 select-none">
                   <span className="flex items-center">Estoque <SortIcon field="quantity" /></span>
                 </th>
                 <th className="text-left text-gray-400 py-3 px-3 font-medium whitespace-nowrap">Nível</th>
                 <th className="text-left text-gray-400 py-3 px-3 font-medium whitespace-nowrap">Mín.</th>
-
-                {/* colunas mensais */}
                 {MONTHS_LABELS.map((m) => (
-                  <th key={m} className="text-center text-gray-500 py-3 px-2 font-medium whitespace-nowrap">
-                    {m}
-                  </th>
+                  <th key={m} className="text-center text-gray-500 py-3 px-2 font-medium whitespace-nowrap">{m}</th>
                 ))}
-
-                <th
-                  onClick={() => toggleSort("forecast")}
-                  className="text-right text-gray-400 py-3 px-3 font-medium whitespace-nowrap cursor-pointer hover:text-gray-200 select-none"
-                >
+                <th onClick={() => toggleSort("forecast")} className="text-right text-gray-400 py-3 px-3 font-medium whitespace-nowrap cursor-pointer hover:text-gray-200 select-none">
                   <span className="flex items-center justify-end">Total 6m <SortIcon field="forecast" /></span>
                 </th>
               </tr>
             </thead>
-
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="py-12 text-center text-gray-600">
-                    Nenhum produto encontrado
-                  </td>
+                  <td colSpan={12} className="py-12 text-center text-gray-600">Nenhum produto encontrado</td>
                 </tr>
               )}
               {rows.map(({ product, quantity, minStock, monthlyForecast }) => {
                 const lv    = stockLevel(quantity, minStock);
                 const total = monthlyForecast.reduce((a, v) => a + v, 0);
                 const pct   = Math.min(100, Math.round((quantity / (minStock * 4)) * 100));
-
                 return (
-                  <tr
-                    key={product.id}
-                    className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-                  >
-                    <td className="py-2.5 px-3 text-white whitespace-nowrap font-medium">
-                      {product.name}
-                    </td>
+                  <tr key={product.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                    <td className="py-2.5 px-3 text-white whitespace-nowrap font-medium">{product.name}</td>
                     <td className="py-2.5 px-3">
-                      <span className="text-[10px] text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
-                        {product.category}
-                      </span>
+                      <span className="text-[10px] text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">{product.category}</span>
                     </td>
                     <td className="py-2.5 px-3">
                       <div className="flex items-center gap-2">
                         <span className={`font-mono font-medium ${LEVEL_TEXT[lv]}`}>{quantity}</span>
-                        {/* mini barra */}
                         <div className="w-12 h-1 bg-white/5 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${LEVEL_BAR[lv]}`}
-                            style={{ width: `${pct}%` }}
-                          />
+                          <div className={`h-full rounded-full ${LEVEL_BAR[lv]}`} style={{ width: `${pct}%` }} />
                         </div>
                       </div>
                     </td>
                     <td className="py-2.5 px-3">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full border ${LEVEL_BG[lv]} ${LEVEL_TEXT[lv]}`}>
-                        {LEVEL_LABEL[lv]}
-                      </span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full border ${LEVEL_BG[lv]} ${LEVEL_TEXT[lv]}`}>{LEVEL_LABEL[lv]}</span>
                     </td>
                     <td className="py-2.5 px-3 font-mono text-gray-600">{minStock}</td>
-
                     {monthlyForecast.map((v, i) => (
                       <td key={i} className="py-2.5 px-2 font-mono text-center text-gray-400">{v}</td>
                     ))}
-
                     <td className="py-2.5 px-3 font-mono text-right">
                       <span className="text-sky-400 font-medium">{total}</span>
                     </td>
@@ -339,7 +286,7 @@ export default function StockView() {
         </div>
       </div>
 
-      {/* ── Mini mapa de comparação entre lojas ── */}
+      {/* ── Comparativo entre lojas (também usa o estoque "vivo") ── */}
       <div className="bg-[#111827] border border-white/5 rounded-xl p-4">
         <div className="flex items-center gap-2 mb-4">
           <TrendingUp size={14} className="text-gray-500" />
@@ -349,9 +296,12 @@ export default function StockView() {
         </div>
         <div className="space-y-2.5">
           {STORES.map((s) => {
-            const total = s.stock.reduce((a, i) => a + i.quantity, 0);
-            const maxTotal = Math.max(...STORES.map((st) => st.stock.reduce((a, i) => a + i.quantity, 0)));
-            const pct = Math.round((total / maxTotal) * 100);
+            const sStock = getStoreStock(s.id);
+            const total = sStock.reduce((a, i) => a + i.quantity, 0);
+            const maxTotal = Math.max(
+              ...STORES.map((st) => getStoreStock(st.id).reduce((a, i) => a + i.quantity, 0))
+            );
+            const pct = maxTotal > 0 ? Math.round((total / maxTotal) * 100) : 0;
             const isSelected = s.id === storeId;
             return (
               <div key={s.id} className="flex items-center gap-3">

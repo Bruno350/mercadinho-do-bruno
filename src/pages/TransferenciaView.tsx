@@ -12,14 +12,10 @@ import {
   Trash2,
   Search,
   ChevronDown,
+  Radio,
 } from "lucide-react";
 import { STORES, PRODUCTS } from "../data/mockData";
-import type { StockItem } from "../types";
-
-// ── tipos internos ────────────────────────────────────────────────
-interface StockState {
-  [storeId: string]: { [productId: string]: number };
-}
+import { useStock } from "../context/StockContext";
 
 interface TransferRecord {
   id: number;
@@ -37,7 +33,6 @@ interface TransferRecord {
   destFinal: number;
 }
 
-// ── helpers ───────────────────────────────────────────────────────
 const fmtBRL = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
@@ -77,21 +72,13 @@ const REASONS = [
   "Evento / promoção",
 ];
 
-// ── build stock inicial a partir dos dados do mock ────────────────
-function buildInitialStock(): StockState {
-  const state: StockState = {};
-  STORES.forEach((store) => {
-    state[store.id] = {};
-    store.stock.forEach((item: StockItem) => {
-      state[store.id][item.productId] = item.quantity;
-    });
-  });
-  return state;
-}
-
-// ── componente principal ──────────────────────────────────────────
 export default function TransferenciaView() {
-  const [stock, setStock] = useState<StockState>(buildInitialStock);
+  // ── estoque global vindo do Context (não é mais um useState local) ──
+  // getQuantity()  -> lê quantidade atual de um produto numa loja
+  // transferStock() -> move unidades entre lojas E avisa TODAS as telas
+  // resetStockCtx() -> volta tudo ao estado original (limpa o localStorage)
+  const { getQuantity, transfer: transferStock, resetStock: resetStockCtx } = useStock();
+
   const [selectedProduct, setSelectedProduct] = useState(PRODUCTS[0].id);
   const [originId, setOriginId] = useState(STORES[0].id);
   const [destId, setDestId] = useState(STORES[1].id);
@@ -108,8 +95,10 @@ export default function TransferenciaView() {
   const product = PRODUCTS.find((p) => p.id === selectedProduct)!;
   const origin = STORES.find((s) => s.id === originId)!;
   const dest = STORES.find((s) => s.id === destId)!;
-  const origQty = stock[originId]?.[selectedProduct] ?? 0;
-  const destQty = stock[destId]?.[selectedProduct] ?? 0;
+
+  // lidas direto do contexto global — refletem o estado real e atual
+  const origQty = getQuantity(originId, selectedProduct);
+  const destQty = getQuantity(destId, selectedProduct);
   const valor = qty * product.unitPrice;
 
   const categories = ["Todos", ...Array.from(new Set(PRODUCTS.map((p) => p.category)))];
@@ -120,13 +109,11 @@ export default function TransferenciaView() {
     return matchCat && matchSearch;
   });
 
-  // validações
   const sameStore = originId === destId;
   const notEnough = qty > origQty;
   const willGoLow = !notEnough && origQty - qty < 20;
   const canTransfer = !sameStore && !notEnough && qty > 0;
 
-  // KPIs do histórico
   const totalTransfers = history.length;
   const totalUnits = history.reduce((a, h) => a + h.qty, 0);
   const totalValue = history.reduce((a, h) => a + h.valor, 0);
@@ -140,12 +127,12 @@ export default function TransferenciaView() {
 
   function confirmar() {
     if (!canTransfer) return;
-    const newStock = {
-      ...stock,
-      [originId]: { ...stock[originId], [selectedProduct]: origQty - qty },
-      [destId]: { ...stock[destId], [selectedProduct]: destQty + qty },
-    };
-    setStock(newStock);
+
+    // ── esta é a linha que "dispara" a atualização em tempo real ──
+    // ela altera o estado dentro do StockProvider; como o Dashboard e
+    // a tela de Estoque também leem desse mesmo Provider, eles re-renderizam
+    // automaticamente com os novos valores, sem F5.
+    transferStock(originId, destId, selectedProduct, qty);
 
     const record: TransferRecord = {
       id: Date.now(),
@@ -166,17 +153,15 @@ export default function TransferenciaView() {
     showFlash("success", `${qty} unid de "${product.name}" transferidas para ${dest.city}!`);
   }
 
-  function resetStock() {
-    setStock(buildInitialStock());
+  function handleResetStock() {
+    resetStockCtx();
     setHistory([]);
     showFlash("success", "Estoque resetado para os valores originais.");
   }
 
-  // ── render ──────────────────────────────────────────────────────
   return (
     <div className="p-4 sm:p-6 space-y-5 min-h-screen">
 
-      {/* ── flash toast ── */}
       {flash && (
         <div
           className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-sm font-medium transition-all animate-fadeIn ${
@@ -198,12 +183,15 @@ export default function TransferenciaView() {
               <Truck size={14} className="text-sky-400" />
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-white">Movimentação de Estoque</h1>
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-medium ml-1">
+              <Radio size={9} className="animate-pulse" /> Tempo real
+            </span>
           </div>
           <p className="text-gray-500 text-sm">Simulador de transferências entre filiais</p>
         </div>
         <div className="flex gap-2">
           <button
-            onClick={resetStock}
+            onClick={handleResetStock}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-400 border border-white/10 rounded-lg hover:bg-white/5 transition-all"
           >
             <Trash2 size={12} /> Resetar estoque
@@ -251,12 +239,10 @@ export default function TransferenciaView() {
       {activeTab === "form" && (
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
 
-          {/* ── coluna esquerda: produto ── */}
           <div className="xl:col-span-2 space-y-4">
             <div className="bg-[#111827] border border-white/5 rounded-xl p-4">
               <p className="text-xs text-gray-500 uppercase tracking-widest mb-3">Selecionar produto</p>
 
-              {/* busca + filtro categoria */}
               <div className="flex gap-2 mb-3">
                 <div className="relative flex-1">
                   <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -280,10 +266,9 @@ export default function TransferenciaView() {
                 </div>
               </div>
 
-              {/* lista de produtos */}
               <div className="space-y-1 max-h-64 overflow-y-auto pr-1 scrollbar-hide">
                 {filteredProducts.map((p) => {
-                  const minQty = Math.min(...STORES.map((s) => stock[s.id]?.[p.id] ?? 0));
+                  const minQty = Math.min(...STORES.map((s) => getQuantity(s.id, p.id)));
                   const level = stockLevel(minQty);
                   return (
                     <button
@@ -312,15 +297,14 @@ export default function TransferenciaView() {
               </div>
             </div>
 
-            {/* ── mini mapa de estoque do produto selecionado ── */}
             <div className="bg-[#111827] border border-white/5 rounded-xl p-4">
               <p className="text-xs text-gray-500 uppercase tracking-widest mb-3">
                 Estoque atual — {product.name}
               </p>
               <div className="space-y-2.5">
                 {STORES.map((s) => {
-                  const q = stock[s.id]?.[selectedProduct] ?? 0;
-                  const max = Math.max(...STORES.map((st) => stock[st.id]?.[selectedProduct] ?? 0));
+                  const q = getQuantity(s.id, selectedProduct);
+                  const max = Math.max(...STORES.map((st) => getQuantity(st.id, selectedProduct)));
                   const pct = max > 0 ? Math.round((q / max) * 100) : 0;
                   const lv = stockLevel(q);
                   return (
@@ -345,12 +329,10 @@ export default function TransferenciaView() {
             </div>
           </div>
 
-          {/* ── coluna direita: formulário ── */}
           <div className="xl:col-span-3 space-y-4">
             <div className="bg-[#111827] border border-white/5 rounded-xl p-4 space-y-4">
               <p className="text-xs text-gray-500 uppercase tracking-widest">Configurar transferência</p>
 
-              {/* produto selecionado */}
               <div className="flex items-center gap-3 p-3 bg-[#0d1424] rounded-xl border border-white/5">
                 <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0">
                   <PackageCheck size={15} className="text-sky-400" />
@@ -361,7 +343,6 @@ export default function TransferenciaView() {
                 </div>
               </div>
 
-              {/* origem → destino */}
               <div className="grid grid-cols-5 gap-2 items-end">
                 <div className="col-span-2">
                   <label className="text-[11px] text-gray-500 uppercase tracking-widest block mb-1.5">Origem</label>
@@ -410,7 +391,6 @@ export default function TransferenciaView() {
                 </div>
               </div>
 
-              {/* quantidade */}
               <div>
                 <div className="flex justify-between mb-1.5">
                   <label className="text-[11px] text-gray-500 uppercase tracking-widest">Quantidade</label>
@@ -437,7 +417,6 @@ export default function TransferenciaView() {
                 </div>
               </div>
 
-              {/* motivo */}
               <div>
                 <label className="text-[11px] text-gray-500 uppercase tracking-widest block mb-1.5">Motivo</label>
                 <div className="flex flex-wrap gap-1.5">
@@ -457,7 +436,6 @@ export default function TransferenciaView() {
                 </div>
               </div>
 
-              {/* prévia */}
               {!sameStore && qty > 0 && (
                 <div className="grid grid-cols-5 gap-2 p-3 bg-[#0d1424] rounded-xl border border-white/5">
                   <div className="col-span-2 text-center">
@@ -483,7 +461,6 @@ export default function TransferenciaView() {
                 </div>
               )}
 
-              {/* alertas */}
               {sameStore && (
                 <div className="flex items-center gap-2 p-3 bg-red-500/5 border border-red-500/20 rounded-xl">
                   <AlertCircle size={14} className="text-red-400 shrink-0" />
@@ -503,7 +480,6 @@ export default function TransferenciaView() {
                 </div>
               )}
 
-              {/* botão */}
               <button
                 onClick={confirmar}
                 disabled={!canTransfer}
@@ -563,7 +539,6 @@ export default function TransferenciaView() {
       {/* ══════════════════ TAB: ANALYTICS ══════════════════ */}
       {activeTab === "analytics" && (
         <div className="space-y-4">
-          {/* produto selecionado no topo */}
           <div className="flex items-center gap-2 mb-1">
             <label className="text-xs text-gray-500 uppercase tracking-widest">Produto:</label>
             <div className="relative">
@@ -582,9 +557,9 @@ export default function TransferenciaView() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             {STORES.map((s) => {
-              const q = stock[s.id]?.[selectedProduct] ?? 0;
+              const q = getQuantity(s.id, selectedProduct);
               const lv = stockLevel(q);
-              const max = Math.max(...STORES.map((st) => stock[st.id]?.[selectedProduct] ?? 0));
+              const max = Math.max(...STORES.map((st) => getQuantity(st.id, selectedProduct)));
               const pct = max > 0 ? Math.round((q / max) * 100) : 0;
               return (
                 <div key={s.id} className={`bg-[#111827] border rounded-xl p-4 ${levelBg[lv]}`}>
@@ -611,7 +586,6 @@ export default function TransferenciaView() {
             })}
           </div>
 
-          {/* tabela resumo todas as categorias */}
           <div className="bg-[#111827] border border-white/5 rounded-xl overflow-hidden">
             <div className="px-4 py-3 border-b border-white/5">
               <p className="text-xs text-gray-500 uppercase tracking-widest">Resumo de estoque por loja</p>
@@ -630,7 +604,7 @@ export default function TransferenciaView() {
                 </thead>
                 <tbody>
                   {PRODUCTS.slice(0, 20).map((p) => {
-                    const qtys = STORES.map((s) => stock[s.id]?.[p.id] ?? 0);
+                    const qtys = STORES.map((s) => getQuantity(s.id, p.id));
                     const total = qtys.reduce((a, v) => a + v, 0);
                     return (
                       <tr key={p.id} className="border-b border-white/5 hover:bg-white/[0.02]">
