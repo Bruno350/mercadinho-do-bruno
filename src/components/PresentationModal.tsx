@@ -9,8 +9,6 @@ import {
   Truck,
   TrendingUp,
   Users,
-  ShoppingCart,
-  DollarSign,
   BarChart3,
   PieChart,
   Table2,
@@ -35,15 +33,14 @@ interface Step {
   badge: string;
   badgeColor: string;
   icon: React.ElementType;
-  what: string;           // O QUE É
-  how: string;            // COMO FUNCIONA TECNICAMENTE
-  points: string[];       // bullets do que apontar na tela
-  techDetail: string;     // detalhe técnico extra
-  speak: string;          // fala sugerida
+  what: string;
+  how: string;
+  points: string[];
+  techDetail: string;
+  speak: string;
 }
 
 const STEPS: Step[] = [
-  // ── DASHBOARD ─────────────────────────────────────────────────
   {
     tab: "dashboard",
     title: "KPIs do Dashboard",
@@ -113,8 +110,6 @@ const STEPS: Step[] = [
     techDetail: "Produto de maior receita tende a ser de alto valor unitário (ex: Smartphone Básico R$899,90) mesmo com menos unidades. Isso ilustra a diferença entre volume e margem.",
     speak: "A pizza mostra concentração geográfica. A tabela abaixo ranqueia produtos por receita — interessante notar que os eletrônicos dominam o topo mesmo com menos unidades, por causa do preço unitário alto.",
   },
-
-  // ── ESTOQUE ───────────────────────────────────────────────────
   {
     tab: "estoque",
     title: "KPIs Operacionais de Estoque",
@@ -186,8 +181,6 @@ const STEPS: Step[] = [
     techDetail: "getStoreStock() lê do StockContext — então quando uma transferência acontece, o comparativo reflete a mudança sem nenhum efeito extra.",
     speak: "Esse comparativo usa o mesmo getStoreStock do contexto global. Se fizermos uma transferência agora e voltarmos aqui, as barras já vão estar diferentes.",
   },
-
-  // ── TRANSFERÊNCIA ─────────────────────────────────────────────
   {
     tab: "transferencia",
     title: "KPIs da Sessão de Movimentação",
@@ -277,7 +270,6 @@ const STEPS: Step[] = [
     techDetail: "O histórico é efêmero (useState local). O analytics é derivado em tempo real do StockContext — reflete o estado atual mesmo após várias transferências.",
     speak: "O histórico registra tudo que fizemos nessa sessão. A aba de Analytics é especialmente útil para visualizar qual produto está crítico em qual loja antes de decidir de onde transferir.",
   },
-  // ── ARQUITETURA ───────────────────────────────────────────────
   {
     tab: "transferencia",
     title: "Arquitetura Geral do Sistema",
@@ -337,33 +329,31 @@ const STEPS: Step[] = [
   },
 ];
 
-// Agrupa steps por tab para navegação contextual
 const STEP_GROUPS: Record<Tab, number[]> = {
-  dashboard: STEPS.reduce<number[]>((acc, s, i) => s.tab === "dashboard" ? [...acc, i] : acc, []),
-  estoque: STEPS.reduce<number[]>((acc, s, i) => s.tab === "estoque" ? [...acc, i] : acc, []),
+  dashboard:     STEPS.reduce<number[]>((acc, s, i) => s.tab === "dashboard"     ? [...acc, i] : acc, []),
+  estoque:       STEPS.reduce<number[]>((acc, s, i) => s.tab === "estoque"       ? [...acc, i] : acc, []),
   transferencia: STEPS.reduce<number[]>((acc, s, i) => s.tab === "transferencia" ? [...acc, i] : acc, []),
 };
 
 const TAB_LABELS: Record<Tab, string> = {
-  dashboard: "Dashboard",
-  estoque: "Estoque",
+  dashboard:     "Dashboard",
+  estoque:       "Estoque",
   transferencia: "Movimentação",
 };
 
 const TAB_ICONS: Record<Tab, React.ElementType> = {
-  dashboard: LayoutDashboard,
-  estoque: Package,
+  dashboard:     LayoutDashboard,
+  estoque:       Package,
   transferencia: Truck,
 };
 
 export default function PresentationModal({ currentTab }: Props) {
-  const [open, setOpen]         = useState(false);
+  const [open, setOpen]           = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
-  const overlayRef              = useRef<HTMLDivElement>(null);
+  const overlayRef                = useRef<HTMLDivElement>(null);
 
   const step = STEPS[stepIndex];
 
-  // Quando a aba muda, pula pro primeiro step dessa aba
   useEffect(() => {
     if (!open) return;
     const firstInTab = STEPS.findIndex((s) => s.tab === currentTab);
@@ -373,9 +363,9 @@ export default function PresentationModal({ currentTab }: Props) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape")      setOpen(false);
-      if (e.key === "ArrowRight")  next();
-      if (e.key === "ArrowLeft")   prev();
+      if (e.key === "Escape")     setOpen(false);
+      if (e.key === "ArrowRight") setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
+      if (e.key === "ArrowLeft")  setStepIndex((i) => Math.max(i - 1, 0));
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -386,15 +376,10 @@ export default function PresentationModal({ currentTab }: Props) {
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
-  const next = () => setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
-  const prev = () => setStepIndex((i) => Math.max(i - 1, 0));
-
-  const TabIcon = TAB_ICONS[step.tab];
   const StepIcon = step.icon;
 
   return (
     <>
-      {/* ── Botão flutuante ── */}
       <button
         onClick={() => setOpen(true)}
         aria-label="Abrir guia de apresentação"
@@ -406,7 +391,6 @@ export default function PresentationModal({ currentTab }: Props) {
         <span className="hidden sm:inline">Apresentação</span>
       </button>
 
-      {/* ── Modal ── */}
       {open && (
         <div
           ref={overlayRef}
@@ -419,8 +403,7 @@ export default function PresentationModal({ currentTab }: Props) {
             className="relative w-full max-w-2xl bg-[#0d1424] border border-white/10 rounded-2xl
                        shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
           >
-
-            {/* ── Header ── */}
+            {/* Header */}
             <div className="flex items-center justify-between px-5 py-3 border-b border-white/5 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-7 h-7 rounded-lg bg-fuchsia-500/15 border border-fuchsia-500/20
@@ -443,7 +426,7 @@ export default function PresentationModal({ currentTab }: Props) {
               </button>
             </div>
 
-            {/* ── Índice de tabs ── */}
+            {/* Índice de tabs */}
             <div className="flex gap-1 px-4 pt-2.5 pb-0 shrink-0 overflow-x-auto scrollbar-hide">
               {(["dashboard", "estoque", "transferencia"] as Tab[]).map((t) => {
                 const Icon = TAB_ICONS[t];
@@ -462,8 +445,8 @@ export default function PresentationModal({ currentTab }: Props) {
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
                                 whitespace-nowrap transition-all border ${
                       isActive
-                        ? t === "dashboard"    ? "bg-sky-500/15 text-sky-400 border-sky-500/20"
-                        : t === "estoque"      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
+                        ? t === "dashboard" ? "bg-sky-500/15 text-sky-400 border-sky-500/20"
+                        : t === "estoque"   ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
                         : "bg-amber-500/15 text-amber-400 border-amber-500/20"
                         : "text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/5"
                     }`}
@@ -480,7 +463,7 @@ export default function PresentationModal({ currentTab }: Props) {
               })}
             </div>
 
-            {/* ── Barra de progresso ── */}
+            {/* Barra de progresso */}
             <div className="px-5 pt-3 pb-0 shrink-0">
               <div className="h-0.5 bg-white/5 rounded-full overflow-hidden">
                 <div
@@ -490,10 +473,8 @@ export default function PresentationModal({ currentTab }: Props) {
               </div>
             </div>
 
-            {/* ── Conteúdo do step ── */}
+            {/* Conteúdo */}
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-
-              {/* Título + badge */}
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
@@ -506,19 +487,16 @@ export default function PresentationModal({ currentTab }: Props) {
                 </span>
               </div>
 
-              {/* O QUE É */}
               <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4">
                 <p className="text-[10px] text-gray-600 uppercase tracking-widest font-medium mb-2">O que é</p>
                 <p className="text-sm text-gray-300 leading-relaxed">{step.what}</p>
               </div>
 
-              {/* COMO FUNCIONA */}
               <div className="bg-sky-500/[0.04] border border-sky-500/10 rounded-xl p-4">
                 <p className="text-[10px] text-sky-600 uppercase tracking-widest font-medium mb-2">Como funciona tecnicamente</p>
                 <p className="text-sm text-gray-300 leading-relaxed">{step.how}</p>
               </div>
 
-              {/* O QUE APONTAR NA TELA */}
               <div>
                 <p className="text-[10px] text-gray-600 uppercase tracking-widest font-medium mb-2">O que apontar na tela</p>
                 <div className="space-y-1.5">
@@ -534,7 +512,6 @@ export default function PresentationModal({ currentTab }: Props) {
                 </div>
               </div>
 
-              {/* DETALHE TÉCNICO */}
               <div className="flex items-start gap-2.5 bg-amber-500/[0.04] border border-amber-500/10 rounded-xl px-3.5 py-3">
                 <span className="text-amber-500 mt-0.5 shrink-0 text-xs font-bold">⚙</span>
                 <div>
@@ -543,17 +520,16 @@ export default function PresentationModal({ currentTab }: Props) {
                 </div>
               </div>
 
-              {/* FALA SUGERIDA */}
               <div className="border-l-2 border-fuchsia-500/40 pl-3.5">
                 <p className="text-[10px] text-gray-600 uppercase tracking-widest font-medium mb-1.5">Fala sugerida</p>
                 <p className="text-sm text-gray-300 leading-relaxed italic">{step.speak}</p>
               </div>
             </div>
 
-            {/* ── Navegação ── */}
+            {/* Navegação */}
             <div className="flex items-center justify-between px-5 py-3 border-t border-white/5 shrink-0">
               <button
-                onClick={prev}
+                onClick={() => setStepIndex((i) => Math.max(i - 1, 0))}
                 disabled={stepIndex === 0}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                   stepIndex === 0
@@ -564,7 +540,6 @@ export default function PresentationModal({ currentTab }: Props) {
                 <ChevronLeft size={14} /> Anterior
               </button>
 
-              {/* Dots */}
               <div className="flex items-center gap-1">
                 {STEPS.map((s, i) => (
                   <button
@@ -582,7 +557,7 @@ export default function PresentationModal({ currentTab }: Props) {
               </div>
 
               <button
-                onClick={next}
+                onClick={() => setStepIndex((i) => Math.min(i + 1, STEPS.length - 1))}
                 disabled={stepIndex === STEPS.length - 1}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                   stepIndex === STEPS.length - 1
